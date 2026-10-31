@@ -8,18 +8,15 @@ function createServer(env: Env, accessToken: string) {
 	const server = new McpServer({ name: 'setwise-mcp', version: '1.0.0' });
 
 	server.registerTool(
-		'hello',
-		{ description: 'Greets user by their name', inputSchema: z.object({ name: z.string() }) },
-		async ({ name }) => {
-			return { content: [{ type: 'text', text: `Hello ${name}! Welcome to Setwise MCP!` }] };
-		},
-	);
-
-	server.registerTool(
 		'search_exercises',
 		{
 			description:
 				'Find available exercises by name. Returns exercise IDs, names and categories. Use this tool to find valid exercises before creating a routine',
+			annotations: {
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
 			inputSchema: z.object({ query: z.string().optional() }),
 		},
 		async ({ query }) => {
@@ -56,6 +53,12 @@ function createServer(env: Env, accessToken: string) {
 		{
 			description:
 				'Creates a workout routine for the authenticated user using existing exercise IDs. Use search_exercises first to find valid IDs. Exercise order is preserved.',
+			annotations: {
+				readOnlyHint: false,
+				idempotentHint: false,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
 			inputSchema: z.object({
 				name: z.string().trim().min(1).max(100),
 				exercise_ids: z.array(z.uuid()).min(1).max(50),
