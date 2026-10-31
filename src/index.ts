@@ -88,8 +88,8 @@ export default {
 	async fetch(request: Request, env: Env) {
 		const url = new URL(request.url);
 
-		const resource = `${url.origin}/mcp`;
-		const metadataUrl = `${url.origin}/.well-known/oauth-protected-resource/mcp`;
+		const resource = env.MCP_RESOURCE_URL;
+		const metadataUrl = `${new URL(resource).origin}/.well-known/oauth-protected-resource/mcp`;
 
 		if (url.pathname === `/.well-known/oauth-protected-resource/mcp`) {
 			return Response.json({
@@ -119,6 +119,11 @@ export default {
 
 		const { data, error } = await supabase.auth.getUser(accessToken);
 
+		const { data: jwtData, error: jwtError } = await supabase.auth.getClaims(accessToken);
+
+		if (jwtError || !jwtData || data.user?.id !== env.ALLOWED_USER_ID) {
+			return new Response('Forbidden', { status: 403 });
+		}
 		if (error || !data.user) {
 			return new Response('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': `Bearer resource_metadata="${metadataUrl}"` } });
 		}

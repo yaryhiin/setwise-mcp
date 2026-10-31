@@ -4,13 +4,13 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "setwise-mcp",
+	"name": "setwise-mcp-dev",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-10-19",
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -28,7 +28,11 @@
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
+	"vars": {
+		"SUPABASE_URL": "https://tpzlyhyloghtlrtqeieu.supabase.co",
+		"SUPABASE_PUBLISHABLE_KEY": "sb_publishable_uPHDf8-NlGDsJY4605PqmA_p_lc3X76",
+		"MCP_RESOURCE_URL": "https://setwise-mcp-dev.aderhilyt.workers.dev"
+	},
 	/**
 	 * Static Assets
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
