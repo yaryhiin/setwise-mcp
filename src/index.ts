@@ -52,7 +52,7 @@ function createServer(env: Env, accessToken: string) {
 		'create_routine',
 		{
 			description:
-				'Creates a workout routine for the authenticated user using existing exercise IDs. Use search_exercises first to find valid IDs. Exercise order is preserved.',
+				'Creates a workout routine for the authenticated user using existing exercise IDs, optional set numbers and min_reps - max_reps rep range. Use search_exercises first to find valid IDs. Exercise order is preserved.',
 			annotations: {
 				readOnlyHint: false,
 				idempotentHint: false,
@@ -61,13 +61,23 @@ function createServer(env: Env, accessToken: string) {
 			},
 			inputSchema: z.object({
 				name: z.string().trim().min(1).max(100),
-				exercise_ids: z.array(z.uuid()).min(1).max(50),
+				exercises: z
+					.array(
+						z.object({
+							id: z.uuid(),
+							sets: z.int().min(1).max(32767).nullish(),
+							min_reps: z.int().min(1).max(32767).nullish(),
+							max_reps: z.int().min(1).max(32767).nullish(),
+						}),
+					)
+					.min(1)
+					.max(50),
 			}),
 		},
-		async ({ name, exercise_ids }) => {
+		async ({ name, exercises }) => {
 			const supabase = getSupabase(env, accessToken);
 
-			const { data, error } = await supabase.rpc('create_routine_with_exercises', { p_name: name, p_exercise_ids: exercise_ids });
+			const { data, error } = await supabase.rpc('create_routine_with_exercises', { p_name: name, p_exercises: exercises });
 
 			if (error) {
 				return { isError: true, content: [{ type: 'text', text: error.message }] };
@@ -78,6 +88,92 @@ function createServer(env: Env, accessToken: string) {
 					{
 						type: 'text',
 						text: JSON.stringify({ success: true, routine_id: data, name }),
+					},
+				],
+			};
+		},
+	);
+
+	server.registerTool(
+		'update_routine',
+		{
+			description:
+				'Updates an existing workout routine for the authenticated user by deleting old exercises from routine and using existing exercise IDs to replace them, optional set numbers and min_reps - max_reps rep range. Use search_exercises first to find valid IDs. Exercise order is preserved.',
+			annotations: {
+				readOnlyHint: false,
+				idempotentHint: false,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+			inputSchema: z.object({
+				routine_id: z.string().uuid(),
+				name: z.string().trim().min(1).max(100),
+				exercises: z
+					.array(
+						z.object({
+							id: z.uuid(),
+							sets: z.int().min(1).max(32767).nullish(),
+							min_reps: z.int().min(1).max(32767).nullish(),
+							max_reps: z.int().min(1).max(32767).nullish(),
+						}),
+					)
+					.min(1)
+					.max(50),
+			}),
+		},
+		async ({ routine_id, name, exercises }) => {
+			const supabase = getSupabase(env, accessToken);
+
+			const { data, error } = await supabase.rpc('update_routine_with_exercises', {
+				p_routine_id: routine_id,
+				p_name: name,
+				p_exercises: exercises,
+			});
+
+			if (error) {
+				return { isError: true, content: [{ type: 'text', text: error.message }] };
+			}
+
+			return {
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({ success: true, routine_id: data, name }),
+					},
+				],
+			};
+		},
+	);
+
+	server.registerTool(
+		'get_routines',
+		{
+			description:
+				'Find available routines. Returns routine IDs, names, exercise count and categories of exercises used in this routine. Use this tool to find valid routines before updating them',
+			annotations: {
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+			inputSchema: z.object({ query: z.string().optional() }),
+		},
+		async ({ query }) => {
+			const supabase = getSupabase(env, accessToken);
+
+			const { data, error } = await supabase.from('routines').select('id, name, exercises_count, categories').order('name').limit(50);
+
+			if (error) {
+				return {
+					isError: true,
+					content: [{ type: 'text', text: error.message }],
+				};
+			}
+
+			return {
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify(data),
 					},
 				],
 			};
