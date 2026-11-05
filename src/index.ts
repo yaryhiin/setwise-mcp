@@ -179,6 +179,41 @@ function createServer(env: Env, accessToken: string) {
 	);
 
 	server.registerTool(
+		'get_routine_details',
+		{
+			description:
+				'Get details of a specific routine by its ID. Returns routine name, exercise data with optional targets(sets, min/max reps) data, if available.',
+			annotations: {
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+			inputSchema: z.object({ routine_id: z.string().uuid() }),
+		},
+		async ({ routine_id }) => {
+			const supabase = getSupabase(env, accessToken);
+
+			const { data, error } = await supabase
+				.from('routines')
+				.select(`name, routine_exercises (exercise_id, order_index, sets, min_reps, max_reps, exercises (name, category))`)
+				.eq('id', routine_id)
+				.order('order_index', { referencedTable: 'routine_exercises', ascending: true })
+				.single();
+
+			if (error) {
+				return {
+					isError: true,
+					content: [{ type: 'text', text: error.message }],
+				};
+			}
+
+			return {
+				content: [{ type: 'text', text: JSON.stringify(data) }],
+			};
+		},
+	);
+
+	server.registerTool(
 		'create_routine',
 		{
 			description:
