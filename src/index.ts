@@ -49,6 +49,136 @@ function createServer(env: Env, accessToken: string) {
 	);
 
 	server.registerTool(
+		'get_workouts',
+		{
+			description:
+				'Find user`s workouts inside date range(end date is not inclusive) with offset and limit. Returns workout ids, name, duration and started_at. Use this tool to find valid workouts before retrieving their details. Workouts are ordered by started_at descending. If no data is provided, the last 30 workouts are returned.',
+			annotations: {
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+			inputSchema: z.object({
+				limit: z.number().int().min(1).max(100).default(30),
+				offset: z.number().int().min(0).default(0),
+				start_date: z.iso.date().optional(),
+				end_date: z.iso.date().optional(),
+			}),
+		},
+		async ({ limit, offset, start_date, end_date }) => {
+			const supabase = getSupabase(env, accessToken);
+
+			let request = supabase
+				.from('workouts')
+				.select('id, name, duration_seconds, started_at')
+				.order('started_at', { ascending: false })
+				.order('id', { ascending: false })
+				.range(offset, offset + limit - 1);
+
+			if (start_date) {
+				request = request.gte('started_at', start_date);
+			}
+
+			if (end_date) {
+				request = request.lt('started_at', end_date);
+			}
+
+			const { data, error } = await request;
+
+			if (error) {
+				return {
+					isError: true,
+					content: [{ type: 'text', text: error.message }],
+				};
+			}
+
+			return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+		},
+	);
+
+	server.registerTool(
+		'get_workout_details',
+		{
+			description:
+				'Get details of a specific workout by its ID. Returns workout name, duration, started_at, exercise and their sets data performed in the workout.',
+			annotations: {
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+			inputSchema: z.object({ workout_id: z.string().uuid() }),
+		},
+		async ({ workout_id }) => {
+			const supabase = getSupabase(env, accessToken);
+
+			const { data, error } = await supabase
+				.from('workouts')
+				.select(
+					`
+      name, duration_seconds, started_at,
+      workout_exercises (
+        exercise_name, category, order_index, notes, exercise_id,
+        workout_sets (set_number, weight, reps, rest_seconds, done)
+      )
+    `,
+				)
+				.eq('id', workout_id)
+				.order('order_index', { referencedTable: 'workout_exercises', ascending: true })
+				.order('set_number', {
+					referencedTable: 'workout_exercises.workout_sets',
+					ascending: true,
+				})
+				.single();
+
+			if (error) {
+				return {
+					isError: true,
+					content: [{ type: 'text', text: error.message }],
+				};
+			}
+
+			return {
+				content: [{ type: 'text', text: JSON.stringify(data) }],
+			};
+		},
+	);
+
+	server.registerTool(
+		'get_routines',
+		{
+			description:
+				'List up to 50 user routines. Returns routine IDs, names, exercise count and categories of exercises used in this routine. Use this tool to find valid routines before updating them',
+			annotations: {
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+			inputSchema: z.object({}),
+		},
+		async ({}) => {
+			const supabase = getSupabase(env, accessToken);
+
+			const { data, error } = await supabase.from('routines').select('id, name, exercises_count, categories').order('name').limit(50);
+
+			if (error) {
+				return {
+					isError: true,
+					content: [{ type: 'text', text: error.message }],
+				};
+			}
+
+			return {
+				content: [
+					{
+						type: 'text' as const,
+						text: JSON.stringify(data),
+					},
+				],
+			};
+		},
+	);
+
+	server.registerTool(
 		'create_routine',
 		{
 			description:
@@ -139,41 +269,6 @@ function createServer(env: Env, accessToken: string) {
 					{
 						type: 'text',
 						text: JSON.stringify({ success: true, routine_id: data, name }),
-					},
-				],
-			};
-		},
-	);
-
-	server.registerTool(
-		'get_routines',
-		{
-			description:
-				'Find available routines. Returns routine IDs, names, exercise count and categories of exercises used in this routine. Use this tool to find valid routines before updating them',
-			annotations: {
-				readOnlyHint: true,
-				destructiveHint: false,
-				openWorldHint: false,
-			},
-			inputSchema: z.object({ query: z.string().optional() }),
-		},
-		async ({ query }) => {
-			const supabase = getSupabase(env, accessToken);
-
-			const { data, error } = await supabase.from('routines').select('id, name, exercises_count, categories').order('name').limit(50);
-
-			if (error) {
-				return {
-					isError: true,
-					content: [{ type: 'text', text: error.message }],
-				};
-			}
-
-			return {
-				content: [
-					{
-						type: 'text',
-						text: JSON.stringify(data),
 					},
 				],
 			};
